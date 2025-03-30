@@ -14,4 +14,7 @@ public class PppNorms {
     @Column(name = "norm")
     private String operationNorm;
 
+    @Column(name = "type")
+    private String operationType;
+
 }

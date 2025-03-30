@@ -6,4 +6,5 @@ import lombok.Data;
 public class NormDto {
     private String operationNormName;
     private String operationNorm;
+    private String operationType;
 }

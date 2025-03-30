@@ -2,6 +2,7 @@ package back3.project.dto;
 
 import lombok.Data;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -20,4 +21,5 @@ public class PppDto {
     private LocalDate forecastDateShipment;
     private LocalDate factDateShipment;
     private List<OperationDto> operations;
+    private List<String> timeDifferences; 
 }

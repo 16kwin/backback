@@ -13,5 +13,9 @@ public class OperationDto {
     private LocalDateTime stopTime;
     private EmployeeDto employee;
     private NormDto norm;
-    private String duration;
+    private String operationDuration;
+    private String optionsDuration;
+    private String totalDuration;
+    private Double optionNorm;
+    private Boolean isTimeExceedsNorm;
 }
