@@ -21,4 +21,6 @@ public class PppDto {
     private LocalDate factDateShipment;
     private List<OperationDto> operations;
     private List<OperationTime> operationTimes;
+    private List<ForecastDateDto> forecastDatesPlan;
+    private List<ForecastDateDto> forecastDatesStart; // Change this line
 }

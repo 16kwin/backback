@@ -13,13 +13,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
 
 @Service
 @RequiredArgsConstructor
@@ -29,26 +26,27 @@ public class OperationCalculationService {
     private final PppNormsRepository pppNormsRepository;
     private final PppOperationRepository pppOperationRepository;
     private final TimeCalculationService timeCalculationService;
-     private final PppConversionService pppConversionService;
+    private final PppConversionService pppConversionService;
 
     public OperationDto createAggregatedOperationDto(List<PppOperation> operations, String transaction) {
         System.out.println("Operations in createAggregatedOperationDto: " + operations);
         if (operations == null || operations.isEmpty()) {
             return null;
         }
-        // Находим самое раннее время начала (обрабатываем null)
+
+        // Find the earliest start time (handling nulls)
         PppOperation earliestStart = operations.stream()
-                .filter(op -> op.getStartTime() != null) // Фильтруем null значения
+                .filter(op -> op.getStartTime() != null)
                 .min(Comparator.comparing(PppOperation::getStartTime))
                 .orElse(null);
 
-        // Находим самое позднее время окончания (обрабатываем null)
+        // Find the latest stop time (handling nulls)
         PppOperation latestStop = operations.stream()
-                .filter(op -> op.getStopTime() != null) // Фильтруем null значения
+                .filter(op -> op.getStopTime() != null)
                 .max(Comparator.comparing(PppOperation::getStopTime))
                 .orElse(null);
 
-        // Вычисляем общую длительность (время выполнения операций)
+        // Calculate the total duration (operation execution time)
         Duration operationDurationCalc = operations.stream()
                 .filter(op -> op.getStartTime() != null && op.getStopTime() != null)
                 .map(op -> {
@@ -66,7 +64,7 @@ public class OperationCalculationService {
                 })
                 .reduce(Duration.ZERO, Duration::plus);
 
-        // Получаем любой объект операции, чтобы достать оттуда общие данные (тип, ворк, айди сотрудника)
+        // Get any operation object to retrieve general data (type, work, employee ID)
         PppOperation anyOperation = operations.get(0);
 
         OperationDto operationDto = new OperationDto();
@@ -79,11 +77,10 @@ public class OperationCalculationService {
                 .orElseThrow(() -> new EntityNotFoundException("Norm not found with name: " + anyOperation.getOperationType() + " in transaction: " + transaction)));
         operationDto.setNorm(norm);
 
-
         String operationDuration = timeCalculationService.formatDuration(operationDurationCalc);
         operationDto.setOperationDuration(operationDuration);
 
-        // Форматируем общую длительность
+        // Format the total duration
         LocalDateTime startTime = null;
         LocalDateTime stopTime = null;
 
@@ -96,27 +93,27 @@ public class OperationCalculationService {
             operationDto.setStopTime(stopTime);
         }
 
-        // Получаем тип работы для операции
+        // Get the work type for the operation
         String operationWorkType = getOperationWorkType(anyOperation.getOperationType());
 
-        // Вычисляем сумму нормативов опций, относящихся к этой операции
+        // Calculate the sum of the option norms related to this operation
         Double optionNorm = calculateOptionNorm(anyOperation.getOperationType(), operationWorkType, transaction);
 
-        // Устанавливаем optionNorm в OperationDto
+        // Set optionNorm to OperationDto
         operationDto.setOptionNorm(optionNorm);
 
-        // Находим и добавляем время опций
+        // Find and add the option time
         Duration optionsDurationCalc = calculateOptionsDuration(anyOperation.getOperationType(), operationWorkType, transaction);
         String optionsDuration = timeCalculationService.formatDuration(optionsDurationCalc);
         operationDto.setOptionsDuration(optionsDuration);
 
-        //Вычисляем totalDuration
+        // Calculate totalDuration
         Duration totalDurationCalc = operationDurationCalc.plus(optionsDurationCalc);
         String totalDuration = timeCalculationService.formatDuration(totalDurationCalc);
         operationDto.setTotalDuration(totalDuration);
 
-        // Вычисляем и устанавливаем isTimeExceedsNorm
-        double totalDurationInHours = operationDurationCalc.toMinutes() / 60.0; // Преобразуем в часы
+        // Calculate and set isTimeExceedsNorm
+        double totalDurationInHours = operationDurationCalc.toMinutes() / 60.0; // Convert to hours
         boolean isTimeExceedsNorm = totalDurationInHours < (norm.getOperationNorm() == null ? 0 : Double.parseDouble(norm.getOperationNorm())) + (operationDto.getOptionNorm() == null ? 0 : operationDto.getOptionNorm());
         operationDto.setIsTimeExceedsNorm(isTimeExceedsNorm);
 
@@ -124,7 +121,7 @@ public class OperationCalculationService {
     }
 
     private String getOperationWorkType(String operationType) {
-        // Создаем Map для хранения соответствия между операцией и типом работы
+        // Create a Map to store the correspondence between operation and work type
         Map<String, String> operationWorkTypes = new HashMap<>();
         operationWorkTypes.put("Входной контроль", "Комплектация");
         operationWorkTypes.put("Выходной контроль", "Комплектация");
@@ -134,43 +131,38 @@ public class OperationCalculationService {
         operationWorkTypes.put("Проверка электронщиком", "Электронщик");
         operationWorkTypes.put("Транспортное положение", "Электрик");
 
-        // Проверяем, есть ли операция в Map
+        // Check if the operation is in the Map
         if (operationWorkTypes.containsKey(operationType)) {
-            // Возвращаем тип работы для заданной операции
+            // Return the work type for the given operation
             return operationWorkTypes.get(operationType);
         } else {
-            // Если операция не найдена, возвращаем значение по умолчанию или выбрасываем исключение
-            System.err.println("Предупреждение: Тип работы не найден для операции " + operationType);
-            return ""; // Возвращаем пустую строку в качестве значения по умолчанию
-            // Или выбрасываем исключение:
-            // throw new IllegalArgumentException("Тип работы не найден для операции " + operationType);
+            // If the operation is not found, return the default value or throw an exception
+            System.err.println("Warning: Work type not found for operation " + operationType);
+            return ""; // Return an empty string as the default value
+            // Or throw an exception:
+            // throw new IllegalArgumentException("Work type not found for operation " + operationType);
         }
     }
 
     private Double calculateOptionNorm(String operationType, String operationWorkType, String transaction) {
         double optionNormSum = 0.0;
 
-        // Получаем все операции для данной транзакции
-        List<PppOperation> allOperations = pppOperationRepository.findByTransaction(transaction);
+        // Get all options for this transaction
+        List<PppOperation> options = pppOperationRepository.findByTransactionAndCategory(transaction, "Опция");
 
-        // Фильтруем операции, оставляя только те, которые не являются основными операциями
-        List<PppOperation> options = allOperations.stream()
-                .filter(operation -> !isMainOperation(operation.getOperationType()))
-                .collect(Collectors.toList());
-
-        // Для каждой опции проверяем, относится ли она к текущей операции
+        // For each option, check if it belongs to the current operation
         for (PppOperation option : options) {
-            // Получаем норматив для опции
+            // Get the norm for the option
             PppNorms norm = pppNormsRepository.findByOperationNormName(option.getOperationType())
-                    .orElse(null); // Обрабатываем случай, когда норматив не найден
+                    .orElse(null); // Handle the case where the norm is not found
 
-            // Если норматив найден и тип работы опции соответствует типу работы операции, то добавляем норматив к сумме
+            // If the norm is found and the work type of the option corresponds to the work type of the operation then add the norm to the sum
             if (norm != null && operationWorkType != null && operationWorkType.equals(norm.getOperationType())) { // Corrected line
                 try {
                     optionNormSum += Double.parseDouble(norm.getOperationNorm());
                 } catch (NumberFormatException e) {
-                    // Обрабатываем случай, когда operationNorm не является числом
-                    System.err.println("Ошибка: Не удалось преобразовать operationNorm в число для опции " + option.getOperationType());
+                    // Handle the case where operationNorm is not a number
+                    System.err.println("Error: Could not convert operationNorm to a number for option " + option.getOperationType());
                 }
             }
         }
@@ -178,25 +170,19 @@ public class OperationCalculationService {
         return optionNormSum;
     }
 
-
     private Duration calculateOptionsDuration(String operationType, String operationWorkType, String transaction) {
         Duration optionsDuration = Duration.ZERO;
 
-        // Получаем все операции для данной транзакции
-        List<PppOperation> allOperations = pppOperationRepository.findByTransaction(transaction);
+        // Get all options for this transaction
+        List<PppOperation> options = pppOperationRepository.findByTransactionAndCategory(transaction, "опция");
 
-        // Фильтруем операции, оставляя только те, которые не являются основными операциями
-        List<PppOperation> options = allOperations.stream()
-                .filter(operation -> !isMainOperation(operation.getOperationType()))
-                .collect(Collectors.toList());
-
-        // Для каждой опции проверяем, относится ли она к текущей операции
+        // For each option, check if it belongs to the current operation
         for (PppOperation option : options) {
-            // Получаем норматив для опции (используем его для проверки типа работы)
+            // Get the norm for the option (use it to check the work type)
             PppNorms norm = pppNormsRepository.findByOperationNormName(option.getOperationType())
                     .orElse(null);
 
-            // Если норматив найден и тип работы опции соответствует типу работы операции, то добавляем длительность опции к сумме
+            // If the norm is found and the work type of the option corresponds to the work type of the operation then add the duration of the option to the sum
             if (norm != null && operationWorkType != null && operationWorkType.equals(norm.getOperationType())) {
                 if (option.getStartTime() != null && option.getStopTime() != null) {
                     optionsDuration = optionsDuration.plus(Duration.between(option.getStartTime(), option.getStopTime()));
@@ -205,17 +191,5 @@ public class OperationCalculationService {
         }
 
         return optionsDuration;
-    }
-     private boolean isMainOperation(String operationType) {
-        List<String> mainOperationTypes = Arrays.asList(
-                "Входной контроль",
-                "Выходной контроль",
-                "Подключение",
-                "Проверка механиком",
-                "Проверка технологом",
-                "Проверка электронщиком",
-                "Транспортное положение"
-        );
-        return mainOperationTypes.contains(operationType);
     }
 }

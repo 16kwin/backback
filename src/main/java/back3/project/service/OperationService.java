@@ -4,9 +4,10 @@ import back3.project.dto.OperationDto;
 import back3.project.entity.PppOperation;
 import back3.project.repository.PppOperationRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -17,12 +18,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OperationService {
 
+    private static final Logger logger = LoggerFactory.getLogger(OperationService.class);
+
     private final PppOperationRepository pppOperationRepository;
-    private final PppConversionService pppConversionService;  // Use conversion service
 
     private final OperationCalculationService operationCalculationService;
 
-     private static final Map<String, Integer> OPERATION_ORDER = new HashMap<>();
+    private static final Map<String, Integer> OPERATION_ORDER = new HashMap<>();
 
     static {
         OPERATION_ORDER.put("Входной контроль", 1);
@@ -34,40 +36,39 @@ public class OperationService {
         OPERATION_ORDER.put("Транспортное положение", 7);
     }
 
-
     public List<OperationDto> getAggregatedOperations(String transaction) {
-           List<PppOperation> operations = pppOperationRepository.findByTransaction(transaction);
+        logger.info("getAggregatedOperations() called for transaction: {}", transaction);
 
-        // Сортируем операции по предопределенному порядку типов операций
+        List<PppOperation> operations = null;
+        try {
+            // Get main operations from the database
+           operations = pppOperationRepository.findByTransactionAndCategory(transaction, "Операция");
+            logger.debug("Found {} main operations for transaction: {}", operations.size(), transaction);
+        } catch (Exception e) {
+           logger.error("Error while fetching operations for transaction: {}", transaction, e);
+           //Можно решить, что делать дальше: пробросить исключение, вернуть пустой список и т.д.
+           return List.of(); //Вернем пустой список, чтобы не сломать всю цепочку
+        }
+
+
+        // Sort operations by predefined order
         operations.sort(Comparator.comparing(op -> OPERATION_ORDER.getOrDefault(op.getOperationType(), Integer.MAX_VALUE)));
+        logger.debug("Operations sorted by OPERATION_ORDER");
 
-        // Фильтруем операции, оставляя только основные операции
-        List<PppOperation> mainOperations = operations.stream()
-                .filter(operation -> isMainOperation(operation.getOperationType()))
-                .collect(Collectors.toList());
-
-        // Группируем основные операции по типу
-        Map<String, List<PppOperation>> operationsByType = mainOperations.stream()
+        // Group operations by type
+        Map<String, List<PppOperation>> operationsByType = operations.stream()
                 .collect(Collectors.groupingBy(PppOperation::getOperationType));
+        logger.debug("Operations grouped by type. Found {} operation types", operationsByType.size());
 
-        // Создаем "смешанные" операции
-        return operationsByType.entrySet().stream()
-                .map(entry -> operationCalculationService.createAggregatedOperationDto(entry.getValue(), transaction))
+        // Create aggregated operations
+        List<OperationDto> operationDtos = operationsByType.entrySet().stream()
+                .map(entry -> {
+                    logger.debug("Creating aggregated operation DTO for operation type: {}", entry.getKey());
+                    return operationCalculationService.createAggregatedOperationDto(entry.getValue(), transaction);
+                })
                 .collect(Collectors.toList());
+        logger.info("Returning {} aggregated operations for transaction: {}", operationDtos.size(), transaction);
+
+        return operationDtos;
     }
-
-    private boolean isMainOperation(String operationType) {
-        List<String> mainOperationTypes = Arrays.asList(
-                "Входной контроль",
-                "Выходной контроль",
-                "Подключение",
-                "Проверка механиком",
-                "Проверка технологом",
-                "Проверка электронщиком",
-                "Транспортное положение"
-        );
-        return mainOperationTypes.contains(operationType);
-    }
-
-
 }

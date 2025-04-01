@@ -27,4 +27,6 @@ public class PppOperation {
     private LocalDateTime stopTime;
     @Column(name = "employees_id")
     private Long employeesId;
+    @Column(name = "category")
+    private String category;
 }
