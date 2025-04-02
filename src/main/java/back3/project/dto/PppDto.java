@@ -22,5 +22,8 @@ public class PppDto {
     private List<OperationDto> operations;
     private List<OperationTime> operationTimes;
     private List<ForecastDateDto> forecastDatesPlan;
-    private List<ForecastDateDto> forecastDatesStart; // Change this line
+    private List<ForecastDateDto> forecastDatesStart;
+    private LocalDate extendedTransportPositionDate; 
+    private LocalDate extendedTransportPositionDatePlan;
+    private String totalDurationSum;// Change this line
 }

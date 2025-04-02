@@ -48,21 +48,11 @@ public class OperationCalculationService {
 
         // Calculate the total duration (operation execution time)
         Duration operationDurationCalc = operations.stream()
-                .filter(op -> op.getStartTime() != null && op.getStopTime() != null)
-                .map(op -> {
-                    Duration duration = Duration.between(op.getStartTime(), op.getStopTime());
-                    long totalHours = duration.toHours();
-
-                    if (totalHours > 24) {
-                        long fullDays = totalHours / 24;
-                        long remainingHours = totalHours % 24;
-                        long workingHours = fullDays * 8 + remainingHours;
-                        return Duration.ofHours(workingHours);
-                    } else {
-                        return duration;
-                    }
-                })
-                .reduce(Duration.ZERO, Duration::plus);
+        .filter(op -> op.getStartTime() != null && op.getStopTime() != null)
+        .map(op -> op.getStartTime().toLocalDate().equals(op.getStopTime().toLocalDate())
+                ? WorkingHoursCalculator.calculateWorkingHoursSameDay(op.getStartTime(), op.getStopTime())
+                : WorkingHoursCalculator.calculateWorkingHours(op.getStartTime(), op.getStopTime()))
+        .reduce(Duration.ZERO, Duration::plus);
 
         // Get any operation object to retrieve general data (type, work, employee ID)
         PppOperation anyOperation = operations.get(0);
