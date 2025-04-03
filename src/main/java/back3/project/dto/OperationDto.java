@@ -19,4 +19,5 @@ public class OperationDto {
     private Double optionNorm;
     private Boolean isTimeExceedsNorm;
     private String category;
+    private Double problemsNormHours;
 }

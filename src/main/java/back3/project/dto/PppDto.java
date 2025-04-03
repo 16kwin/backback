@@ -26,4 +26,8 @@ public class PppDto {
     private LocalDate extendedTransportPositionDate; 
     private LocalDate extendedTransportPositionDatePlan;
     private String totalDurationSum;// Change this line
+    private Double totalProblemsNormHours; 
+    private Double completionPercentage;
+    private String positiveInterOperationTimeSum;
+    private String totalSum;
 }

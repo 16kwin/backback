@@ -4,6 +4,8 @@ import back3.project.dto.NormDto;
 import back3.project.dto.OperationDto;
 import back3.project.entity.PppNorms;
 import back3.project.entity.PppOperation;
+import back3.project.entity.Problems;
+import back3.project.repository.ProblemsRepository;
 import back3.project.repository.PppEmployeesRepository;
 import back3.project.repository.PppNormsRepository;
 import back3.project.repository.PppOperationRepository;
@@ -27,6 +29,7 @@ public class OperationCalculationService {
     private final PppOperationRepository pppOperationRepository;
     private final TimeCalculationService timeCalculationService;
     private final PppConversionService pppConversionService;
+    private final ProblemsRepository problemsRepository;
 
     public OperationDto createAggregatedOperationDto(List<PppOperation> operations, String transaction) {
         System.out.println("Operations in createAggregatedOperationDto: " + operations);
@@ -46,13 +49,17 @@ public class OperationCalculationService {
                 .max(Comparator.comparing(PppOperation::getStopTime))
                 .orElse(null);
 
-        // Calculate the total duration (operation execution time)
+        // Check for incomplete operations (start time but no stop time)
+        boolean hasIncompleteOperation = operations.stream()
+                .anyMatch(op -> op.getStartTime() != null && op.getStopTime() == null);
+
+        // Calculate the total duration (operation execution time) only if every norm is complete
         Duration operationDurationCalc = operations.stream()
-        .filter(op -> op.getStartTime() != null && op.getStopTime() != null)
-        .map(op -> op.getStartTime().toLocalDate().equals(op.getStopTime().toLocalDate())
-                ? WorkingHoursCalculator.calculateWorkingHoursSameDay(op.getStartTime(), op.getStopTime())
-                : WorkingHoursCalculator.calculateWorkingHours(op.getStartTime(), op.getStopTime()))
-        .reduce(Duration.ZERO, Duration::plus);
+                .filter(op -> op.getStartTime() != null && op.getStopTime() != null)
+                .map(op -> op.getStartTime().toLocalDate().equals(op.getStopTime().toLocalDate())
+                        ? WorkingHoursCalculator.calculateWorkingHoursSameDay(op.getStartTime(), op.getStopTime())
+                        : WorkingHoursCalculator.calculateWorkingHours(op.getStartTime(), op.getStopTime()))
+                .reduce(Duration.ZERO, Duration::plus);
 
         // Get any operation object to retrieve general data (type, work, employee ID)
         PppOperation anyOperation = operations.get(0);
@@ -96,20 +103,29 @@ public class OperationCalculationService {
         Duration optionsDurationCalc = calculateOptionsDuration(anyOperation.getOperationType(), operationWorkType, transaction);
         String optionsDuration = timeCalculationService.formatDuration(optionsDurationCalc);
         operationDto.setOptionsDuration(optionsDuration);
+        Double problemsNormHours = calculateProblemsNormHours(transaction, anyOperation.getEmployeesId());
+        operationDto.setProblemsNormHours(problemsNormHours);
 
         // Calculate totalDuration
-        Duration totalDurationCalc = operationDurationCalc.plus(optionsDurationCalc);
-        String totalDuration = timeCalculationService.formatDuration(totalDurationCalc);
-        operationDto.setTotalDuration(totalDuration);
+        String totalDuration = null;  // start with null
+        if (!hasIncompleteOperation) { //if every operation complete we do this
+            Duration totalDurationCalc = operationDurationCalc.plus(optionsDurationCalc);
+            totalDuration = timeCalculationService.formatDuration(totalDurationCalc);
+        }
 
-        // Calculate and set isTimeExceedsNorm
-        double totalDurationInHours = operationDurationCalc.toMinutes() / 60.0; // Convert to hours
-        boolean isTimeExceedsNorm = totalDurationInHours < (norm.getOperationNorm() == null ? 0 : Double.parseDouble(norm.getOperationNorm())) + (operationDto.getOptionNorm() == null ? 0 : operationDto.getOptionNorm());
-        operationDto.setIsTimeExceedsNorm(isTimeExceedsNorm);
+        operationDto.setTotalDuration(totalDuration); //Total duration will be null in case of open time in some norm
 
         return operationDto;
     }
-
+    private Double calculateProblemsNormHours(String transaction, Long employeeId) {
+        List<Problems> problems = problemsRepository.findByTransactionAndIdEmployee(transaction, employeeId);
+        if(problems == null || problems.isEmpty()) {
+            return 0.0;  // Или null, в зависимости от того, какое значение по умолчанию вы хотите.
+        }
+        return problems.stream()
+                .mapToDouble(problem -> (problem.getNormHours() != null ? problem.getNormHours() : 0.0)) // Обработка null
+                .sum();
+    }
     private String getOperationWorkType(String operationType) {
         // Create a Map to store the correspondence between operation and work type
         Map<String, String> operationWorkTypes = new HashMap<>();
