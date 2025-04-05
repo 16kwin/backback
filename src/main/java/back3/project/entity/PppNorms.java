@@ -16,5 +16,6 @@ public class PppNorms {
 
     @Column(name = "type")
     private String operationType;
-
+    @Column(name = "category")
+    private String category;
 }

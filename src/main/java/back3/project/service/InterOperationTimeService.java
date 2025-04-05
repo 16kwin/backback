@@ -10,12 +10,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class InterOperationTimeService {
 
     private final TimeCalculationService timeCalculationService;
+    private static final Logger logger = LoggerFactory.getLogger(InterOperationTimeService.class);
 
     private static final Map<String, String> OPERATION_PRECEDENCE = new HashMap<>();
 
@@ -32,6 +35,11 @@ public class InterOperationTimeService {
         List<OperationTime> operationTimes = new ArrayList<>(); // Change list type
 
         for (OperationDto currentOperation : operations) {
+            if (currentOperation == null) {
+                // Обработка случая, когда currentOperation равен null
+                logger.warn("currentOperation is null, skipping this iteration");
+                continue; // Перейти к следующей итерации
+            }
             String currentOperationType = currentOperation.getOperationType();
 
             // Для "Входного контроля" не вычисляем разницу во времени, **ПРОПУСКАЕМ**
@@ -63,8 +71,14 @@ public class InterOperationTimeService {
 
     private OperationDto findPreviousOperation(List<OperationDto> operations, String previousOperationType, OperationDto currentOperation) {
         for (OperationDto operation : operations) {
-            if (previousOperationType != null && previousOperationType.equals(operation.getOperationType()) && operation.getStopTime() != null) {
-                return operation;
+            if (operation != null) {
+                String operationType = operation.getOperationType();
+                if (operationType != null && previousOperationType != null && previousOperationType.equals(operationType) && operation.getStopTime() != null) {
+                    return operation;
+                }
+            } else {
+                // Log a warning or handle the null operation
+                System.err.println("Warning: Null operation found in list.");
             }
         }
         return null;

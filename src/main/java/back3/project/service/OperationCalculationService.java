@@ -1,28 +1,32 @@
 package back3.project.service;
 
+import back3.project.dto.EmployeeDto;
 import back3.project.dto.NormDto;
 import back3.project.dto.OperationDto;
+import back3.project.entity.PppEmployees;
 import back3.project.entity.PppNorms;
 import back3.project.entity.PppOperation;
 import back3.project.entity.Problems;
-import back3.project.repository.ProblemsRepository;
 import back3.project.repository.PppEmployeesRepository;
 import back3.project.repository.PppNormsRepository;
 import back3.project.repository.PppOperationRepository;
+import back3.project.repository.ProblemsRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class OperationCalculationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(OperationCalculationService.class);
 
     private final PppEmployeesRepository pppEmployeesRepository;
     private final PppNormsRepository pppNormsRepository;
@@ -32,9 +36,33 @@ public class OperationCalculationService {
     private final ProblemsRepository problemsRepository;
 
     public OperationDto createAggregatedOperationDto(List<PppOperation> operations, String transaction) {
-        System.out.println("Operations in createAggregatedOperationDto: " + operations);
+        logger.debug("createAggregatedOperationDto() called with operations: {} and transaction: {}", operations, transaction);
         if (operations == null || operations.isEmpty()) {
+            logger.debug("Operations list is null or empty, returning null.");
             return null;
+        }
+
+        // Get any operation object to retrieve general data (type, work, employee ID)
+        PppOperation anyOperation = operations.get(0);
+
+        // Check if employeeId is null
+        Long employeeId = anyOperation.getEmployeesId();
+        if (employeeId == null) {
+            logger.warn("Skipping operation because employeeId is null");
+            return null; // Skip creating an operation if employeeId is null
+        }
+
+        //Check if employees exist
+        Optional<PppEmployees> optionalPppEmployees = pppEmployeesRepository.findById(employeeId);
+        if (optionalPppEmployees.isEmpty()) {
+            logger.warn("Skipping operation because employeeId not found in database");
+            return null; // Skip creating an operation if employeeId is not found
+        }
+        String operationWorkType = getOperationWorkType(anyOperation.getOperationType());
+
+        if (operationWorkType == null || operationWorkType.isEmpty()) {
+            logger.warn("Skipping operation because operationWorkType is null or empty for operation: " + anyOperation.getOperationType());
+            return null; // Skip creating an operation if operationWorkType is not found
         }
 
         // Find the earliest start time (handling nulls)
@@ -61,15 +89,14 @@ public class OperationCalculationService {
                         : WorkingHoursCalculator.calculateWorkingHours(op.getStartTime(), op.getStopTime()))
                 .reduce(Duration.ZERO, Duration::plus);
 
-        // Get any operation object to retrieve general data (type, work, employee ID)
-        PppOperation anyOperation = operations.get(0);
-
         OperationDto operationDto = new OperationDto();
         operationDto.setOperationId(anyOperation.getOperationId());
         operationDto.setOperationType(anyOperation.getOperationType());
         operationDto.setOperationWork(anyOperation.getOperationWork());
-        operationDto.setEmployee(pppConversionService.convertToEmployeeDto(pppEmployeesRepository.findById(anyOperation.getEmployeesId())
-                .orElseThrow(() -> new EntityNotFoundException("Employee not found with id: " + anyOperation.getEmployeesId() + " in transaction: " + transaction))));
+
+        EmployeeDto employeeDto = pppConversionService.convertToEmployeeDto(optionalPppEmployees.get());
+        operationDto.setEmployee(employeeDto);
+
         NormDto norm = pppConversionService.convertToNormDto(pppNormsRepository.findByOperationNormName(anyOperation.getOperationType())
                 .orElseThrow(() -> new EntityNotFoundException("Norm not found with name: " + anyOperation.getOperationType() + " in transaction: " + transaction)));
         operationDto.setNorm(norm);
@@ -91,21 +118,20 @@ public class OperationCalculationService {
         }
 
         // Get the work type for the operation
-        String operationWorkType = getOperationWorkType(anyOperation.getOperationType());
 
         // Calculate the sum of the option norms related to this operation
         Double optionNorm = calculateOptionNorm(anyOperation.getOperationType(), operationWorkType, transaction);
+        logger.debug("Calculated optionNorm: {} for operationType: {}", optionNorm, anyOperation.getOperationType());
 
         // Set optionNorm to OperationDto
         operationDto.setOptionNorm(optionNorm);
-
         // Find and add the option time
         Duration optionsDurationCalc = calculateOptionsDuration(anyOperation.getOperationType(), operationWorkType, transaction);
         String optionsDuration = timeCalculationService.formatDuration(optionsDurationCalc);
         operationDto.setOptionsDuration(optionsDuration);
+
         Double problemsNormHours = calculateProblemsNormHours(transaction, anyOperation.getEmployeesId());
         operationDto.setProblemsNormHours(problemsNormHours);
-
         // Calculate totalDuration
         String totalDuration = null;  // start with null
         if (!hasIncompleteOperation) { //if every operation complete we do this
@@ -114,18 +140,20 @@ public class OperationCalculationService {
         }
 
         operationDto.setTotalDuration(totalDuration); //Total duration will be null in case of open time in some norm
-
+        logger.debug("Returning OperationDto: {}", operationDto);
         return operationDto;
     }
+
     private Double calculateProblemsNormHours(String transaction, Long employeeId) {
         List<Problems> problems = problemsRepository.findByTransactionAndIdEmployee(transaction, employeeId);
-        if(problems == null || problems.isEmpty()) {
+        if (problems == null || problems.isEmpty()) {
             return 0.0;  // Или null, в зависимости от того, какое значение по умолчанию вы хотите.
         }
         return problems.stream()
                 .mapToDouble(problem -> (problem.getNormHours() != null ? problem.getNormHours() : 0.0)) // Обработка null
                 .sum();
     }
+
     private String getOperationWorkType(String operationType) {
         // Create a Map to store the correspondence between operation and work type
         Map<String, String> operationWorkTypes = new HashMap<>();
@@ -143,59 +171,79 @@ public class OperationCalculationService {
             return operationWorkTypes.get(operationType);
         } else {
             // If the operation is not found, return the default value or throw an exception
-            System.err.println("Warning: Work type not found for operation " + operationType);
+            logger.warn("Work type not found for operation " + operationType);
             return ""; // Return an empty string as the default value
             // Or throw an exception:
             // throw new IllegalArgumentException("Work type not found for operation " + operationType);
         }
     }
-
     private Double calculateOptionNorm(String operationType, String operationWorkType, String transaction) {
+        logger.debug("calculateOptionNorm() called for operationType: {}, operationWorkType: {}, transaction: {}", operationType, operationWorkType, transaction);
         double optionNormSum = 0.0;
-
+    
         // Get all options for this transaction
-        List<PppOperation> options = pppOperationRepository.findByTransactionAndCategory(transaction, "Опция");
-
+        List<PppOperation> options = pppOperationRepository.findByTransaction(transaction);
+        logger.debug("Found {} options for transaction: {}", options.size(), transaction);
+    
         // For each option, check if it belongs to the current operation
         for (PppOperation option : options) {
             // Get the norm for the option
-            PppNorms norm = pppNormsRepository.findByOperationNormName(option.getOperationType())
-                    .orElse(null); // Handle the case where the norm is not found
-
-            // If the norm is found and the work type of the option corresponds to the work type of the operation then add the norm to the sum
-            if (norm != null && operationWorkType != null && operationWorkType.equals(norm.getOperationType())) { // Corrected line
+            Optional<PppNorms> normOptional = pppNormsRepository.findByOperationNormName(option.getOperationType());
+            PppNorms norm = null;
+    
+            if (normOptional.isPresent()) {
+                norm = normOptional.get();
+            }
+    
+            logger.debug("OPERATION: {}, CATEGORY: {}, EMPLOYEE_ID: {}", option.getOperationType(), (norm != null ? norm.getCategory() : null), option.getEmployeesId());
+    
+            // If the norm is found and it is an "Опция" (ignore case) and employeesId is not null and operationWorkType matches the norm's operation type
+            if (norm != null && "Опция".equalsIgnoreCase(norm.getCategory()) && option.getEmployeesId() != null && operationWorkType != null && operationWorkType.equals(norm.getOperationType())) {
                 try {
                     optionNormSum += Double.parseDouble(norm.getOperationNorm());
+                    logger.debug("Adding option norm: {} for operation: {}", norm.getOperationNorm(), option.getOperationType());
+    
                 } catch (NumberFormatException e) {
                     // Handle the case where operationNorm is not a number
-                    System.err.println("Error: Could not convert operationNorm to a number for option " + option.getOperationType());
+                    logger.error("Could not convert operationNorm to a number for option " + option.getOperationType(), e);
                 }
             }
         }
-
+        logger.debug("Returning optionNormSum: {} for operationType: {}", optionNormSum, operationType);
         return optionNormSum;
     }
 
     private Duration calculateOptionsDuration(String operationType, String operationWorkType, String transaction) {
+        logger.debug("calculateOptionsDuration() called for operationType: {}, operationWorkType: {}, transaction: {}", operationType, operationWorkType, transaction);
         Duration optionsDuration = Duration.ZERO;
-
+    
         // Get all options for this transaction
-        List<PppOperation> options = pppOperationRepository.findByTransactionAndCategory(transaction, "опция");
-
+        List<PppOperation> options = pppOperationRepository.findByTransaction(transaction);
+        logger.debug("Found {} options for transaction: {}", options.size(), transaction);
+    
         // For each option, check if it belongs to the current operation
         for (PppOperation option : options) {
-            // Get the norm for the option (use it to check the work type)
-            PppNorms norm = pppNormsRepository.findByOperationNormName(option.getOperationType())
-                    .orElse(null);
-
-            // If the norm is found and the work type of the option corresponds to the work type of the operation then add the duration of the option to the sum
-            if (norm != null && operationWorkType != null && operationWorkType.equals(norm.getOperationType())) {
+    
+            Optional<PppNorms> normOptional = pppNormsRepository.findByOperationNormName(option.getOperationType());
+            PppNorms norm = null;
+    
+            if (normOptional.isPresent()) {
+                norm = normOptional.get();
+            }
+    
+             logger.debug("OPERATION: {}, CATEGORY: {}, EMPLOYEE_ID: {}", option.getOperationType(), (norm != null ? norm.getCategory() : null), option.getEmployeesId());
+    
+            // If the norm is found and it is an "Опция" (ignore case) and employeesId is not null and operationWorkType matches the norm's operation type
+            if (norm != null && "Опция".equalsIgnoreCase(norm.getCategory()) && option.getEmployeesId() != null &&  operationWorkType != null && operationWorkType.equals(norm.getOperationType())) {
                 if (option.getStartTime() != null && option.getStopTime() != null) {
-                    optionsDuration = optionsDuration.plus(Duration.between(option.getStartTime(), option.getStopTime()));
+                    Duration duration = Duration.between(option.getStartTime(), option.getStopTime());
+                    optionsDuration = optionsDuration.plus(duration);
+                    logger.debug("Adding duration: {} for option: {}", duration, option.getOperationType());
                 }
             }
         }
-
+    
+        logger.debug("Returning optionsDuration: {} for operationType: {}", optionsDuration, operationType);
         return optionsDuration;
     }
 }

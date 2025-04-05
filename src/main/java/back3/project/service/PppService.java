@@ -8,7 +8,10 @@ import back3.project.dto.ForecastDateDto;
 import back3.project.entity.Ppp;
 import back3.project.repository.PppRepository;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.*;
 import java.time.format.DateTimeParseException;
@@ -26,6 +29,7 @@ public class PppService {
     private final InterOperationTimeService interOperationTimeService;
     private final ForecastDateService forecastDateService;
     private final ForecastDateStartService forecastDateStartService;
+    private static final Logger logger = LoggerFactory.getLogger(PppService.class);
 
     private static final LocalTime WORKDAY_START = LocalTime.of(8, 30);
     private static final LocalTime WORKDAY_END = LocalTime.of(17, 30);
@@ -35,9 +39,24 @@ public class PppService {
 
         List<PppDto> pppDtos = ppps.stream()
                 .map(ppp -> {
+                    // Конвертируем Ppp в PppDto
                     PppDto pppDto = pppConversionService.convertToPppDto(ppp);
+
+                    // Получаем агрегированные операции
                     List<OperationDto> operationDtos = operationService.getAggregatedOperations(ppp.getTransaction());
+
+                    // Устанавливаем флаг isTimeExceedsNorm для каждой операции
+                    for (OperationDto operationDto : operationDtos) {
+                        if (operationDto != null) {
+                            operationDto.setIsTimeExceedsNorm(operationService.isTimeExceedsNorm(operationDto));
+                        } else {
+                            logger.warn("OperationDto is null, skipping setIsTimeExceedsNorm");
+                        }
+                    }
+
+                    // Устанавливаем операции в PppDto
                     pppDto.setOperations(operationDtos);
+
 
                     List<OperationTime> operationTimes = interOperationTimeService.calculateTimeDifferences(operationDtos);
                     pppDto.setOperationTimes(operationTimes);
@@ -56,7 +75,7 @@ public class PppService {
                     //Calculate positive inter-operation time sum
                     String positiveInterOperationTimeSum = calculatePositiveInterOperationTimeSum(operationTimes);
                     pppDto.setPositiveInterOperationTimeSum(positiveInterOperationTimeSum);
-                    
+
                     // Calculate total sum
                     String totalSum = calculateAndFormatTotalSum(positiveInterOperationTimeSum, totalDurationSum, totalProblemsNormHours);
                     pppDto.setTotalSum(totalSum);
