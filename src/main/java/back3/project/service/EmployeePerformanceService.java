@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,6 +28,14 @@ public class EmployeePerformanceService {
     private final PppEmployeesRepository pppEmployeesRepository;
     private final OperationService operationService;
 
+    private static final List<String> ALLOWED_SPECIALIZATIONS = Arrays.asList(
+            "Механик",
+            "Электрик",
+            "Электронщик",
+            "Комплектация",
+            "Технолог"
+    );
+
     public List<EmployeePerformanceDto> getEmployeePerformances() {
         logger.info("getEmployeePerformances() called");
         List<EmployeePerformanceDto> employeePerformanceDtos = new ArrayList<>();
@@ -34,11 +43,16 @@ public class EmployeePerformanceService {
         // 1. Получить список всех сотрудников
         List<PppEmployees> employees = pppEmployeesRepository.findAll();
 
-        // 2. Получить все агрегированные операции
+        // 2. Отфильтровать список сотрудников по специальности
+        List<PppEmployees> filteredEmployees = employees.stream()
+                .filter(employee -> ALLOWED_SPECIALIZATIONS.contains(employee.getEmployeesSpecialization()))
+                .toList();
+
+        // 3. Получить все агрегированные операции
         List<OperationDto> allAggregatedOperations = operationService.getAllAggregatedOperations();
 
-        for (PppEmployees employee : employees) {
-            // 3. Для каждого сотрудника:
+        for (PppEmployees employee : filteredEmployees) {
+            // 4. Для каждого сотрудника:
             EmployeePerformanceDto employeePerformanceDto = new EmployeePerformanceDto();
             employeePerformanceDto.setEmployeeId(employee.getEmployeesId());
             employeePerformanceDto.setEmployeeName(employee.getEmployeesName());
@@ -49,7 +63,7 @@ public class EmployeePerformanceService {
             AtomicReference<Double> totalTimeSpentInSeconds = new AtomicReference<>(0.0); //  Время в секундах
             AtomicReference<Double> totalNormInSeconds = new AtomicReference<>(0.0); //  Сумма operationNorm и optionNorm в секундах
 
-            // 4. Фильтруем операции, относящиеся к текущему сотруднику
+            // 5. Фильтруем операции, относящиеся к текущему сотруднику
             allAggregatedOperations.stream()
                     .filter(operationDto -> operationDto.getEmployee().getEmployeesId().equals(employee.getEmployeesId()))
                     .forEach(operationDto -> {
@@ -82,14 +96,16 @@ public class EmployeePerformanceService {
             employeePerformanceDto.setTotalOperations(totalOperations.get());
             employeePerformanceDto.setOnTimeOperations(onTimeOperations.get());
             employeePerformanceDto.setTotalTimeSpent(convertSecondsToTime(totalTimeSpentInSeconds.get())); //  Преобразуем в HH:mm:ss
-            employeePerformanceDto.setTotalNorm(convertSecondsToTime(totalNormInSeconds.get())); // Преобразуем в HH:mm:ss
+            employeePerformanceDto.setTotalNorm(convertSecondsToTime(totalNormInSeconds.get())); // Преобразуем в HH:mm:ss в String
+
+            // Вычисляем процент выполнения нормы
             double normPercentage = 0.0;
             if (totalNormInSeconds.get() > 0) {
-                normPercentage = (totalNormInSeconds.get() / totalTimeSpentInSeconds.get()) * 100;
+                normPercentage = (totalTimeSpentInSeconds.get() / totalNormInSeconds.get()) * 100;
             }
-            employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage));
+            employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage)); // Форматируем до 2 знаков после запятой
 
-            // 5. Вычислить процент операций, выполненных в срок
+            // 6. Вычислить процент операций, выполненных в срок
             double onTimePercentage = 0.0;
             if (totalOperations.get() > 0) {
                 onTimePercentage = (double) onTimeOperations.get() / totalOperations.get() * 100;
