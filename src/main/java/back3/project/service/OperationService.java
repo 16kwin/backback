@@ -88,6 +88,63 @@ public class OperationService {
         return operationDtos;
     }
 
+
+    public List<OperationDto> getAllAggregatedOperations() {
+        logger.info("getAllAggregatedOperations() called");
+
+        List<PppOperation> operations = null;
+        try {
+            // Get all operations from the database, filtering out those with null employeesId
+            operations = pppOperationRepository.findByEmployeesIdIsNotNull();
+            logger.debug("Found {} main operations", operations.size());
+        } catch (Exception e) {
+            logger.error("Error while fetching operations", e);
+            return List.of();
+        }
+
+        // Filter operations to only include allowed types
+        operations = operations.stream()
+                .filter(op -> ALLOWED_OPERATION_TYPES.contains(op.getOperationType()))
+                .collect(Collectors.toList());
+
+        logger.debug("After filtering, {} operations remain", operations.size());
+
+        // Sort operations by predefined order
+        operations.sort(Comparator.comparing(op -> OPERATION_ORDER.getOrDefault(op.getOperationType(), Integer.MAX_VALUE)));
+        logger.debug("Operations sorted by OPERATION_ORDER");
+
+        // Group operations by transaction
+        Map<String, List<PppOperation>> operationsByTransaction = operations.stream()
+                .collect(Collectors.groupingBy(PppOperation::getTransaction));
+        logger.debug("Operations grouped by transaction. Found {} transactions", operationsByTransaction.size());
+
+        // Create aggregated operations for each transaction
+        List<OperationDto> operationDtos = operationsByTransaction.entrySet().stream()
+                .flatMap(entry -> {
+                    String transaction = entry.getKey();
+                    List<PppOperation> transactionOperations = entry.getValue();
+                    logger.debug("Creating aggregated operation DTOs for transaction: {}", transaction);
+
+                     // Group operations by type before creating DTOs
+                    Map<String, List<PppOperation>> operationsByType = transactionOperations.stream()
+                            .collect(Collectors.groupingBy(PppOperation::getOperationType));
+
+                    return operationsByType.entrySet().stream()
+                            .map(typeEntry -> {
+                                List<PppOperation> operationsOfType = typeEntry.getValue();
+                                OperationDto operationDto = operationCalculationService.createAggregatedOperationDto(operationsOfType, transaction);
+                                if (operationDto != null) {
+                                    operationDto.setIsTimeExceedsNorm(isTimeExceedsNorm(operationDto));
+                                }
+                                return operationDto;
+                            });
+                })
+                .collect(Collectors.toList());
+
+        logger.info("Returning {} aggregated operations for all transactions", operationDtos.size());
+        return operationDtos;
+    }
+
     public boolean isTimeExceedsNorm(OperationDto operationDto) {
         // Проверяем, что operationDto не null
         if (operationDto == null) {

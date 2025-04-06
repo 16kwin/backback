@@ -14,4 +14,6 @@ public interface PppOperationRepository extends JpaRepository<PppOperation, Long
 
     @Query("SELECT po FROM PppOperation po WHERE po.transaction = :transaction AND po.employeesId IS NOT NULL")
     List<PppOperation> findByTransactionAndEmployeesIdIsNotNull(@Param("transaction") String transaction);
+
+    List<PppOperation> findByEmployeesIdIsNotNull();
 }
