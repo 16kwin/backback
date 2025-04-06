@@ -9,9 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.text.NumberFormat;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +46,8 @@ public class EmployeePerformanceService {
 
             AtomicLong totalOperations = new AtomicLong(0);
             AtomicLong onTimeOperations = new AtomicLong(0);
+            AtomicReference<Double> totalTimeSpentInSeconds = new AtomicReference<>(0.0); //  Время в секундах
+            AtomicReference<Double> totalNormInSeconds = new AtomicReference<>(0.0); //  Сумма operationNorm и optionNorm в секундах
 
             // 4. Фильтруем операции, относящиеся к текущему сотруднику
             allAggregatedOperations.stream()
@@ -50,10 +57,37 @@ public class EmployeePerformanceService {
                         if (operationDto.getIsTimeExceedsNorm()) {
                             onTimeOperations.incrementAndGet();
                         }
+                        Double duration = convertTimeToSeconds(operationDto.getTotalDuration()); // Преобразуем строку в секунды
+                        totalTimeSpentInSeconds.updateAndGet(v -> v + (duration != null ? duration : 0)); //  Суммируем время
+
+                        // Суммируем operationNorm и optionNorm в секундах
+                        AtomicReference<Double> operationNormRef = new AtomicReference<>(0.0);
+                        try {
+                            NumberFormat nf = NumberFormat.getInstance(Locale.getDefault());
+                            operationNormRef.set(nf.parse(operationDto.getNorm().getOperationNorm()).doubleValue());
+                        } catch (ParseException e) {
+                            logger.warn("Не удалось преобразовать operationNorm в число для операции: {}", operationDto.getOperationId());
+                        }
+
+                        AtomicReference<Double> optionNormRef = new AtomicReference<>(0.0);
+                        optionNormRef.set(operationDto.getOptionNorm() != null ? operationDto.getOptionNorm() : 0.0);
+
+                        //Преобразуем в секунды, если они в часах
+                        operationNormRef.set(operationNormRef.get() * 3600);
+                        optionNormRef.set(optionNormRef.get() * 3600);
+
+                        totalNormInSeconds.updateAndGet(v -> v + operationNormRef.get() + optionNormRef.get());
                     });
 
             employeePerformanceDto.setTotalOperations(totalOperations.get());
             employeePerformanceDto.setOnTimeOperations(onTimeOperations.get());
+            employeePerformanceDto.setTotalTimeSpent(convertSecondsToTime(totalTimeSpentInSeconds.get())); //  Преобразуем в HH:mm:ss
+            employeePerformanceDto.setTotalNorm(convertSecondsToTime(totalNormInSeconds.get())); // Преобразуем в HH:mm:ss
+            double normPercentage = 0.0;
+            if (totalNormInSeconds.get() > 0) {
+                normPercentage = (totalNormInSeconds.get() / totalTimeSpentInSeconds.get()) * 100;
+            }
+            employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage));
 
             // 5. Вычислить процент операций, выполненных в срок
             double onTimePercentage = 0.0;
@@ -67,5 +101,27 @@ public class EmployeePerformanceService {
 
         logger.info("Returning {} employee performances", employeePerformanceDtos.size());
         return employeePerformanceDtos;
+    }
+
+    private Double convertTimeToSeconds(String time) {
+        String[] parts = time.split(":");
+        if (parts.length != 3) {
+            return 0.0; // Или выбросить исключение, если формат неправильный
+        }
+        try {
+            int hours = Integer.parseInt(parts[0]);
+            int minutes = Integer.parseInt(parts[1]);
+            int seconds = Integer.parseInt(parts[2]);
+            return (double) (hours * 3600 + minutes * 60 + seconds);
+        } catch (NumberFormatException e) {
+            return 0.0; // Или выбросить исключение, если не удалось преобразовать
+        }
+    }
+
+    private String convertSecondsToTime(Double totalSeconds) {
+        int hours = (int) (totalSeconds / 3600);
+        int minutes = (int) ((totalSeconds % 3600) / 60);
+        int seconds = (int) (totalSeconds % 60);
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 }

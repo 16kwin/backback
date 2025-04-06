@@ -11,4 +11,7 @@ public class EmployeePerformanceDto {
     private Long totalOperations;
     private Long onTimeOperations;
     private Double onTimePercentage;
+    private String totalTimeSpent;
+    private String totalNorm;
+    private String normPercentage;
 }
