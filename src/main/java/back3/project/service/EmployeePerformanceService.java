@@ -101,7 +101,7 @@ public class EmployeePerformanceService {
             // Вычисляем процент выполнения нормы
             double normPercentage = 0.0;
             if (totalNormInSeconds.get() > 0) {
-                normPercentage = (totalTimeSpentInSeconds.get() / totalNormInSeconds.get()) * 100;
+                normPercentage = (totalNormInSeconds.get() / totalTimeSpentInSeconds.get()) * 100;
             }
             employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage)); // Форматируем до 2 знаков после запятой
 
