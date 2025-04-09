@@ -14,4 +14,6 @@ public class EmployeePerformanceDto {
     private String totalTimeSpent;
     private String totalNorm;
     private String normPercentage;
+    private String workingHoursFund;
+    private Double workingHoursFundUsage;
 }

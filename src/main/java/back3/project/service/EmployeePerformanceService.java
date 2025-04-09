@@ -36,8 +36,8 @@ public class EmployeePerformanceService {
             "Технолог"
     );
 
-    public List<EmployeePerformanceDto> getEmployeePerformances() {
-        logger.info("getEmployeePerformances() called");
+    public List<EmployeePerformanceDto> getEmployeePerformances(Integer month) {
+        logger.info("getEmployeePerformances() called with month: {}", month);
         List<EmployeePerformanceDto> employeePerformanceDtos = new ArrayList<>();
 
         // 1. Получить список всех сотрудников
@@ -48,8 +48,17 @@ public class EmployeePerformanceService {
                 .filter(employee -> ALLOWED_SPECIALIZATIONS.contains(employee.getEmployeesSpecialization()))
                 .toList();
 
-        // 3. Получить все агрегированные операции
+        // 3. Получить все агрегированные операции (возможно, потребуется изменить OperationService)
         List<OperationDto> allAggregatedOperations = operationService.getAllAggregatedOperations();
+
+        // Фильтруем операции по месяцу, если месяц указан
+        if (month != null) {
+            allAggregatedOperations = allAggregatedOperations.stream()
+                    .filter(operationDto -> operationDto.getStartTime() != null && operationDto.getStartTime().getMonthValue() == month)
+                    .toList();
+        } else {
+            logger.info("Month is null, returning data for the whole year.");
+        }
 
         for (PppEmployees employee : filteredEmployees) {
             // 4. Для каждого сотрудника:
@@ -60,7 +69,7 @@ public class EmployeePerformanceService {
 
             AtomicLong totalOperations = new AtomicLong(0);
             AtomicLong onTimeOperations = new AtomicLong(0);
-            AtomicReference<Double> totalTimeSpentInSeconds = new AtomicReference<>(0.0); //  Время в секундах
+            AtomicReference<Double> totalTimeSpentInSecondsRef = new AtomicReference<>(0.0); //  Время в секундах
             AtomicReference<Double> totalNormInSeconds = new AtomicReference<>(0.0); //  Сумма operationNorm и optionNorm в секундах
 
             // 5. Фильтруем операции, относящиеся к текущему сотруднику
@@ -72,7 +81,7 @@ public class EmployeePerformanceService {
                             onTimeOperations.incrementAndGet();
                         }
                         Double duration = convertTimeToSeconds(operationDto.getTotalDuration()); // Преобразуем строку в секунды
-                        totalTimeSpentInSeconds.updateAndGet(v -> v + (duration != null ? duration : 0)); //  Суммируем время
+                        totalTimeSpentInSecondsRef.updateAndGet(v -> v + (duration != null ? duration : 0)); //  Суммируем время
 
                         // Суммируем operationNorm и optionNorm в секундах
                         AtomicReference<Double> operationNormRef = new AtomicReference<>(0.0);
@@ -95,13 +104,13 @@ public class EmployeePerformanceService {
 
             employeePerformanceDto.setTotalOperations(totalOperations.get());
             employeePerformanceDto.setOnTimeOperations(onTimeOperations.get());
-            employeePerformanceDto.setTotalTimeSpent(convertSecondsToTime(totalTimeSpentInSeconds.get())); //  Преобразуем в HH:mm:ss
+            employeePerformanceDto.setTotalTimeSpent(convertSecondsToTime(totalTimeSpentInSecondsRef.get())); //  Преобразуем в HH:mm:ss
             employeePerformanceDto.setTotalNorm(convertSecondsToTime(totalNormInSeconds.get())); // Преобразуем в HH:mm:ss в String
 
             // Вычисляем процент выполнения нормы
             double normPercentage = 0.0;
             if (totalNormInSeconds.get() > 0) {
-                normPercentage = (totalNormInSeconds.get() / totalTimeSpentInSeconds.get()) * 100;
+                normPercentage = (totalTimeSpentInSecondsRef.get() / totalNormInSeconds.get()) * 100;
             }
             employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage)); // Форматируем до 2 знаков после запятой
 
@@ -111,6 +120,19 @@ public class EmployeePerformanceService {
                 onTimePercentage = (double) onTimeOperations.get() / totalOperations.get() * 100;
             }
             employeePerformanceDto.setOnTimePercentage(onTimePercentage);
+
+            employeePerformanceDto.setWorkingHoursFund(getWorkingHoursFundForMonth(month));
+
+            // Вычисляем использование фонда рабочего времени
+            Double workingHoursFundInSeconds = convertTimeToSeconds(employeePerformanceDto.getWorkingHoursFund());
+            Double totalTimeSpentInSeconds = convertTimeToSeconds(employeePerformanceDto.getTotalTimeSpent());
+
+            double workingHoursFundUsage = 0.0;
+            if (workingHoursFundInSeconds != null && workingHoursFundInSeconds > 0 && totalTimeSpentInSeconds != null) {
+                workingHoursFundUsage = totalTimeSpentInSeconds / workingHoursFundInSeconds;
+            }
+
+            employeePerformanceDto.setWorkingHoursFundUsage(workingHoursFundUsage);
 
             employeePerformanceDtos.add(employeePerformanceDto);
         }
@@ -139,5 +161,29 @@ public class EmployeePerformanceService {
         int minutes = (int) ((totalSeconds % 3600) / 60);
         int seconds = (int) (totalSeconds % 60);
         return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    private String getWorkingHoursFundForMonth(Integer month) {
+        if (month == null) {
+            return String.format("%04d:00:00", 1984); // Если месяц не указан, возвращаем годовое значение
+        }
+
+        int hours;
+        switch (month) {
+            case 1:  hours = 136; break; // Январь
+            case 2:  hours = 152; break; // Февраль
+            case 3:  hours = 160; break; // Март
+            case 4:  hours = 176; break; // Апрель
+            case 5:  hours = 144; break; // Май
+            case 6:  hours = 168; break; // Июнь
+            case 7:  hours = 184; break; // Июль
+            case 8:  hours = 168; break; // Август
+            case 9:  hours = 176; break; // Сентябрь
+            case 10: hours = 184; break; // Октябрь
+            case 11: hours = 152; break; // Ноябрь
+            case 12: hours = 184; break; // Декабрь
+            default: hours = 0; // Если месяц не указан или указан неверно
+        }
+        return String.format("%02d:00:00", hours); // Форматируем в HH:mm:ss
     }
 }

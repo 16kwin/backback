@@ -1,19 +1,18 @@
 package back3.project.service;
 
-import back3.project.dto.OperationDto;
-import back3.project.dto.OperationTime;
-import back3.project.dto.PppDto;
-import back3.project.dto.PppListDto;
-import back3.project.dto.ForecastDateDto;
+import back3.project.dto.*;
 import back3.project.entity.Ppp;
 import back3.project.repository.PppRepository;
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
-import java.time.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
@@ -28,25 +27,20 @@ public class PppService {
     private final PppConversionService pppConversionService;
     private final InterOperationTimeService interOperationTimeService;
     private final ForecastDateService forecastDateService;
-    private final ForecastDateStartService forecastDateStartService;
+    private final ForecastDateStartService forecastDateStartService;// Inject the new service
     private static final Logger logger = LoggerFactory.getLogger(PppService.class);
 
     private static final LocalTime WORKDAY_START = LocalTime.of(8, 30);
     private static final LocalTime WORKDAY_END = LocalTime.of(17, 30);
-    
 
     public PppListDto getAllPpps() {
+        logger.info("getAllPpps() called");
         List<Ppp> ppps = pppRepository.findAll();
 
         List<PppDto> pppDtos = ppps.stream()
                 .map(ppp -> {
-                    // Конвертируем Ppp в PppDto
                     PppDto pppDto = pppConversionService.convertToPppDto(ppp);
-
-                    // Получаем агрегированные операции
                     List<OperationDto> operationDtos = operationService.getAggregatedOperations(ppp.getTransaction());
-
-                    // Устанавливаем флаг isTimeExceedsNorm для каждой операции
                     for (OperationDto operationDto : operationDtos) {
                         if (operationDto != null) {
                             operationDto.setIsTimeExceedsNorm(operationService.isTimeExceedsNorm(operationDto));
@@ -54,34 +48,25 @@ public class PppService {
                             logger.warn("OperationDto is null, skipping setIsTimeExceedsNorm");
                         }
                     }
-
-                    // Устанавливаем операции в PppDto
                     pppDto.setOperations(operationDtos);
-
 
                     List<OperationTime> operationTimes = interOperationTimeService.calculateTimeDifferences(operationDtos);
                     pppDto.setOperationTimes(operationTimes);
 
-                    // Calculate total duration sum
                     String totalDurationSum = calculateTotalDurationSum(operationDtos);
                     pppDto.setTotalDurationSum(totalDurationSum);
 
-                    // Calculate total problems norm hours
                     Double totalProblemsNormHours = calculateTotalProblemsNormHours(operationDtos);
                     pppDto.setTotalProblemsNormHours(totalProblemsNormHours);
 
-                    // Calculate percentage
                     pppDto.setCompletionPercentage(calculateCompletionPercentage(ppp.getPlanPpp(), totalDurationSum));
 
-                    //Calculate positive inter-operation time sum
                     String positiveInterOperationTimeSum = calculatePositiveInterOperationTimeSum(operationTimes);
                     pppDto.setPositiveInterOperationTimeSum(positiveInterOperationTimeSum);
 
-                    // Calculate total sum
                     String totalSum = calculateAndFormatTotalSum(positiveInterOperationTimeSum, totalDurationSum, totalProblemsNormHours);
                     pppDto.setTotalSum(totalSum);
 
-                    // Calculate forecast dates
                     LocalDate planDateStart = ppp.getPlanDateStart();
                     List<ForecastDateDto> forecastDatesPlan = forecastDateService.calculateForecastDates(planDateStart, operationDtos);
                     pppDto.setForecastDatesPlan(forecastDatesPlan);
@@ -89,7 +74,6 @@ public class PppService {
                     List<ForecastDateDto> forecastDatesStart = forecastDateStartService.calculateForecastDates(ppp.getFactDateStart(), ppp.getForecastDateStart(), operationDtos);
                     pppDto.setForecastDatesStart(forecastDatesStart);
 
-                    //  Calculate extended transport position date
                     pppDto.setExtendedTransportPositionDate(calculateExtendedTransportPositionDate(forecastDatesStart, operationDtos));
                     pppDto.setExtendedTransportPositionDatePlan(calculateExtendedTransportPositionDatePlan(forecastDatesPlan, operationDtos));
 
@@ -97,9 +81,11 @@ public class PppService {
                 })
                 .collect(Collectors.toList());
 
+        // Get employee statistics
+        // Create PppListDto and populate it
         PppListDto pppListDto = new PppListDto();
         pppListDto.setPpps(pppDtos);
-
+        logger.info("Returning {} aggregated PPPs", pppDtos.size()); // Добавлено логирование
         return pppListDto;
     }
 
@@ -196,7 +182,6 @@ public class PppService {
         if (forecastDates == null || forecastDates.isEmpty()) {
             return null;
         }
-
         ForecastDateDto transportPositionDto = forecastDates.stream()
                 .filter(dto -> dto != null && "Транспортное положение".equals(dto.getOperationName()))
                 .findFirst()

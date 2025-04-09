@@ -1,11 +1,11 @@
 package back3.project.service;
 
 import back3.project.dto.OperationDto;
-import back3.project.dto.OperationTime; // Import OperationTime
+import back3.project.dto.OperationTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,42 +31,87 @@ public class InterOperationTimeService {
         OPERATION_PRECEDENCE.put("Транспортное положение", "Выходной контроль");
     }
 
-    public List<OperationTime> calculateTimeDifferences(List<OperationDto> operations) { // Change return type
-        List<OperationTime> operationTimes = new ArrayList<>(); // Change list type
+    private static final LocalTime WORKDAY_START = LocalTime.of(8, 30);
+    private static final LocalTime WORKDAY_END = LocalTime.of(17, 30);
+    private static final int WORKING_HOURS_PER_DAY = 8;
+
+    public List<OperationTime> calculateTimeDifferences(List<OperationDto> operations) {
+        List<OperationTime> operationTimes = new ArrayList<>();
 
         for (OperationDto currentOperation : operations) {
             if (currentOperation == null) {
-                // Обработка случая, когда currentOperation равен null
                 logger.warn("currentOperation is null, skipping this iteration");
-                continue; // Перейти к следующей итерации
+                continue;
             }
             String currentOperationType = currentOperation.getOperationType();
 
-            // Для "Входного контроля" не вычисляем разницу во времени, **ПРОПУСКАЕМ**
             if ("Входной контроль".equals(currentOperationType)) {
-                continue; // Переходим к следующей итерации цикла, ничего не добавляя в timeDifferences
+                continue;
             }
 
             String previousOperationType = OPERATION_PRECEDENCE.get(currentOperationType);
             OperationDto previousOperation = findPreviousOperation(operations, previousOperationType, currentOperation);
 
             if (previousOperation != null && currentOperation.getStartTime() != null && previousOperation.getStopTime() != null) {
-                Duration timeDifference = Duration.between(previousOperation.getStopTime(), currentOperation.getStartTime());
+                LocalDateTime previousStopTime = previousOperation.getStopTime();
+                LocalDateTime currentStartTime = currentOperation.getStartTime();
+
+                Duration timeDifference;
+                if (currentStartTime.isBefore(previousStopTime)) {
+                    // Если currentStartTime раньше previousStopTime, просто вычисляем разницу (отрицательное значение)
+                    timeDifference = Duration.between(previousStopTime, currentStartTime);
+                } else {
+                    // Иначе учитываем рабочие часы и выходные
+                    timeDifference = calculateWorkingHours(previousStopTime, currentStartTime);
+                }
+
                 String formattedDuration = timeCalculationService.formatDuration(timeDifference);
 
-                // Create OperationTime object and add it to the list
                 OperationTime operationTime = new OperationTime();
                 operationTime.setOperationType(currentOperationType);
                 operationTime.setTimeDifference(formattedDuration);
                 operationTimes.add(operationTime);
-
-            } else {
-                // Если предыдущая операция не найдена или время равно null, **ПРОПУСКАЕМ**
-                // Не добавляем null в timeDifferences
             }
         }
 
-        return operationTimes; // Return the list of OperationTime objects
+        return operationTimes;
+    }
+
+    private Duration calculateWorkingHours(LocalDateTime start, LocalDateTime end) {
+        Duration totalWorkingTime = Duration.ZERO;
+        LocalDateTime current = start;
+        boolean negative = false;
+
+        if (end.isBefore(start)) {
+            LocalDateTime temp = start;
+            start = end;
+            end = temp;
+            negative = true;
+        }
+
+        while (current.isBefore(end)) {
+            if (!isWeekend(current.toLocalDate())) {
+                LocalDateTime workdayStart = current.toLocalDate().atTime(WORKDAY_START);
+                LocalDateTime workdayEnd = current.toLocalDate().atTime(WORKDAY_END);
+
+                LocalDateTime intervalStart = current.isBefore(workdayStart) ? workdayStart : current;
+                LocalDateTime intervalEnd = end.isBefore(workdayEnd) ? end : workdayEnd;
+
+                if (intervalStart.isBefore(intervalEnd)) {
+                    totalWorkingTime = totalWorkingTime.plus(Duration.between(intervalStart, intervalEnd));
+                }
+            }
+            current = current.plusDays(1).with(WORKDAY_START);
+        }
+        if(negative){
+            totalWorkingTime = totalWorkingTime.negated();
+        }
+        return totalWorkingTime;
+    }
+
+    private boolean isWeekend(LocalDate date) {
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
     }
 
     private OperationDto findPreviousOperation(List<OperationDto> operations, String previousOperationType, OperationDto currentOperation) {
@@ -77,7 +122,6 @@ public class InterOperationTimeService {
                     return operation;
                 }
             } else {
-                // Log a warning or handle the null operation
                 System.err.println("Warning: Null operation found in list.");
             }
         }

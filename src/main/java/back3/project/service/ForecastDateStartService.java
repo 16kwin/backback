@@ -52,8 +52,9 @@ public class ForecastDateStartService {
                 totalNormValue = Double.parseDouble(previousOperation.getNorm().getOperationNorm()) + previousOperation.getOptionNorm();
             }
 
-             if (operationType.equals("Входной контроль")) {
+            if (operationType.equals("Входной контроль")) {
                 totalNormValue = 0;
+                currentDateTime = currentDateTime.plusDays(2); // Добавляем 2 дня для входного контроля
             }
 
             long daysToAdd = (long) Math.floor(totalNormValue / 8);
@@ -61,18 +62,16 @@ public class ForecastDateStartService {
 
             LocalDateTime endDateTime = currentDateTime.plusDays(daysToAdd).plusHours((long) remainingHours);
 
-
             // Учет выходных дней
             while (endDateTime.getDayOfWeek() == DayOfWeek.SATURDAY || endDateTime.getDayOfWeek() == DayOfWeek.SUNDAY) {
                 endDateTime = endDateTime.plusDays(1).with(LocalTime.of(8, 30));
             }
-             if (endDateTime.toLocalTime().isAfter(LocalTime.of(17, 30))) {
-                 endDateTime = endDateTime.plusDays(1).with(LocalTime.of(8, 30));
-                   while (endDateTime.getDayOfWeek() == DayOfWeek.SATURDAY || endDateTime.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                      endDateTime = endDateTime.plusDays(1).with(LocalTime.of(8, 30));
-                   }
-               }
-
+            if (endDateTime.toLocalTime().isAfter(LocalTime.of(17, 30))) {
+                endDateTime = endDateTime.plusDays(1).with(LocalTime.of(8, 30));
+                while (endDateTime.getDayOfWeek() == DayOfWeek.SATURDAY || endDateTime.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                    endDateTime = endDateTime.plusDays(1).with(LocalTime.of(8, 30));
+                }
+            }
 
             ForecastDateDto forecastDateDto = new ForecastDateDto();
             forecastDateDto.setOperationName(operationType);
