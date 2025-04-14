@@ -36,8 +36,8 @@ public class EmployeePerformanceService {
             "Технолог"
     );
 
-    public List<EmployeePerformanceDto> getEmployeePerformances(Integer month) {
-        logger.info("getEmployeePerformances() called with month: {}", month);
+    public List<EmployeePerformanceDto> getEmployeePerformances(Integer month, Integer year) {
+        logger.info("getEmployeePerformances() called with month: {}, year: {}", month, year);
         List<EmployeePerformanceDto> employeePerformanceDtos = new ArrayList<>();
 
         // 1. Получить список всех сотрудников
@@ -52,14 +52,20 @@ public class EmployeePerformanceService {
         List<OperationDto> allAggregatedOperations = operationService.getAllAggregatedOperations();
 
         // Фильтруем операции по месяцу, если месяц указан
-        if (month != null) {
+        if (month != null && year != null) {
             allAggregatedOperations = allAggregatedOperations.stream()
-                    .filter(operationDto -> operationDto.getStartTime() != null && operationDto.getStartTime().getMonthValue() == month)
+                    .filter(operationDto -> operationDto.getStartTime() != null &&
+                                           operationDto.getStartTime().getMonthValue() == month &&
+                                           operationDto.getStartTime().getYear() == year)
+                    .toList();
+        } else if (year != null) {
+            allAggregatedOperations = allAggregatedOperations.stream()
+                    .filter(operationDto -> operationDto.getStartTime() != null &&
+                                           operationDto.getStartTime().getYear() == year)
                     .toList();
         } else {
-            logger.info("Month is null, returning data for the whole year.");
+            logger.info("Month and year are null, returning data for the whole period.");
         }
-
         for (PppEmployees employee : filteredEmployees) {
             // 4. Для каждого сотрудника:
             EmployeePerformanceDto employeePerformanceDto = new EmployeePerformanceDto();
@@ -110,7 +116,7 @@ public class EmployeePerformanceService {
             // Вычисляем процент выполнения нормы
             double normPercentage = 0.0;
             if (totalNormInSeconds.get() > 0) {
-                normPercentage = (totalTimeSpentInSecondsRef.get() / totalNormInSeconds.get()) * 100;
+                normPercentage = (totalNormInSeconds.get() / totalTimeSpentInSecondsRef.get()) * 100;
             }
             employeePerformanceDto.setNormPercentage(String.format("%.2f", normPercentage)); // Форматируем до 2 знаков после запятой
 
@@ -129,7 +135,7 @@ public class EmployeePerformanceService {
 
             double workingHoursFundUsage = 0.0;
             if (workingHoursFundInSeconds != null && workingHoursFundInSeconds > 0 && totalTimeSpentInSeconds != null) {
-                workingHoursFundUsage = totalTimeSpentInSeconds / workingHoursFundInSeconds;
+                workingHoursFundUsage = (double) Math.round((totalTimeSpentInSeconds / workingHoursFundInSeconds) * 100) / 100;
             }
 
             employeePerformanceDto.setWorkingHoursFundUsage(workingHoursFundUsage);

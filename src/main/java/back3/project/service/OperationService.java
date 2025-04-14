@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,6 +22,11 @@ public class OperationService {
     private final PppOperationRepository pppOperationRepository;
     private final PppNormsRepository pppNormsRepository;
     private final OperationCalculationService operationCalculationService;
+    public boolean isEmployeeBusyNow(Long employeesId, LocalDateTime now) {
+        logger.info("isEmployeeBusyNow() called for employee: " + employeesId + " at time: " + now);
+        List<PppOperation> operations = pppOperationRepository.findByEmployeesIdAndStartTimeBeforeAndStopTimeAfter(employeesId, now, now);
+        return !operations.isEmpty();
+    }
 
     private static final Map<String, Integer> OPERATION_ORDER = new HashMap<>();
     public static final List<String> ALLOWED_OPERATION_TYPES = Arrays.asList(

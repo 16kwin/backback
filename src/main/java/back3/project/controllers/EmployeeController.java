@@ -15,14 +15,17 @@ import java.util.List;
 @RestController
 @RequestMapping("/employees")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://194.87.56.253:3000")
+@CrossOrigin(origins = "http://localhost:3000")
 public class EmployeeController {
 
     private final EmployeePerformanceService employeePerformanceService;
 
     @GetMapping("/performance")
-    public ResponseEntity<List<EmployeePerformanceDto>> getEmployeePerformances(@RequestParam(required = false) Integer month) {
-        List<EmployeePerformanceDto> employeePerformances = employeePerformanceService.getEmployeePerformances(month);
-        return ResponseEntity.ok(employeePerformances);
+    public ResponseEntity<List<EmployeePerformanceDto>> getEmployeePerformances(
+            @RequestParam(value = "month", required = false) Integer month,
+            @RequestParam(value = "year", required = false) Integer year) {
+
+        List<EmployeePerformanceDto> performances = employeePerformanceService.getEmployeePerformances(month, year);
+        return ResponseEntity.ok(performances);
     }
 }
