@@ -33,7 +33,6 @@ public class InterOperationTimeService {
 
     private static final LocalTime WORKDAY_START = LocalTime.of(8, 30);
     private static final LocalTime WORKDAY_END = LocalTime.of(17, 30);
-    private static final int WORKING_HOURS_PER_DAY = 8;
 
     public List<OperationTime> calculateTimeDifferences(List<OperationDto> operations) {
         List<OperationTime> operationTimes = new ArrayList<>();

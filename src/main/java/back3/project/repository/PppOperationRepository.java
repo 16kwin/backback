@@ -19,4 +19,7 @@ public interface PppOperationRepository extends JpaRepository<PppOperation, Long
     List<PppOperation> findByEmployeesIdIsNotNull();
 
     List<PppOperation> findByEmployeesIdAndStartTimeBeforeAndStopTimeAfter(Long employeesId, LocalDateTime endTime, LocalDateTime startTime);
+
+    List<PppOperation> findByTransactionAndEmployeesIdIsNotNullAndOperationType(String transaction,
+            String operationType);
 }
