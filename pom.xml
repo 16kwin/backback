@@ -88,23 +88,6 @@
 					</excludes>
 				</configuration>
 			</plugin>
-			<plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-help-plugin</artifactId>
-            <version>3.2.0</version>  <!-- Проверьте актуальную версию! -->
-            <executions>
-                <execution>
-                    <id>show-java-version</id>
-                    <phase>validate</phase>
-                    <goals>
-                        <goal>system-info</goal>
-                    </goals>
-                    <configuration>
-                        <outputFile>${project.build.directory}/java-version.txt</outputFile>
-                    </configuration>
-                </execution>
-            </executions>
-            </plugin>
 		</plugins>
 	</build>
 
