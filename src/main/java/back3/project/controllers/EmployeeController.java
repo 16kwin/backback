@@ -15,7 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/employees")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://194.87.56.253:3000")
+@CrossOrigin(origins = "http://192.168.8.35:3000")
 public class EmployeeController {
 
     private final EmployeePerformanceService employeePerformanceService;
