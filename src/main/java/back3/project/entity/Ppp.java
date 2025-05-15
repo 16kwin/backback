@@ -5,7 +5,7 @@ import lombok.Data;
 import java.time.LocalDate;
 @Data
 @Entity
-@Table(name = "ppp") 
+@Table(name = "plan_ppp") 
 public class Ppp {
     @Id
     @Column(name = "transaction")

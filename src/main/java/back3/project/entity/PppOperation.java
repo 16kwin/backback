@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "operation") 
+@Table(name = "work_report_ppp") 
 public class PppOperation {
     @Id
     @Column(name = "id")

@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "problems") // Замените "your_table_name" на фактическое имя таблицы
+@Table(name = "faults") // Замените "your_table_name" на фактическое имя таблицы
 public class Problems {
 
     @Id
