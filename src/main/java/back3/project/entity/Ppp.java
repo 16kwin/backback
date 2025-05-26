@@ -8,38 +8,38 @@ import java.time.LocalDate;
 @Table(name = "plan_ppp") 
 public class Ppp {
     @Id
-    @Column(name = "transaction")
+    @Column(name = "Machine")
     private String transaction;
 
-    @Column(name = "status")
+    @Column(name = "status_ppp")
     private String status;
 
-    @Column(name = "plan_ppp")
+    @Column(name = "Count_days_PPP")
     private Long planPpp;
-    @Column(name = "plan_date_start")
+    @Column(name = "Date_start_PPP_Plan")
     private LocalDate planDateStart;
 
-    @Column(name = "forecast_date_start")
+    @Column(name = "Date_start_PPP_Forecast")
     private LocalDate forecastDateStart;
 
-    @Column(name = "fact_date_start")
+    @Column(name = "Date_start_PPP_Fact")
     private LocalDate factDateStart;
 
-    @Column(name = "plan_date_stop")
+    @Column(name = "Date_end_PPP_Plan")
     private LocalDate planDateStop;
 
-    @Column(name = "forecast_date_stop")
+    @Column(name = "Date_end_PPP_Forecast")
     private LocalDate forecastDateStop;
 
-    @Column(name = "fact_date_stop")
+    @Column(name = "Date_start_PPP_Fact")
     private LocalDate factDateStop;
 
-    @Column(name = "plan_date_shipment")
+    @Column(name = "Shipping_date_Plan")
     private LocalDate planDateShipment;
 
-    @Column(name = "forecast_date_shipment")
+    @Column(name = "Shipping_date_Forecast")
     private LocalDate forecastDateShipment;
 
-    @Column(name = "fact_date_shipment")
+    @Column(name = "Shipping_date_Fact")
     private LocalDate factDateShipment;
 }
