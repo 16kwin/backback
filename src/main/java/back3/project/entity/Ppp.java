@@ -31,7 +31,7 @@ public class Ppp {
     @Column(name = "Date_end_PPP_Forecast")
     private LocalDate forecastDateStop;
 
-    @Column(name = "Date_start_PPP_Fact")
+    @Column(name = "Date_end_PPP_Fact")
     private LocalDate factDateStop;
 
     @Column(name = "Shipping_date_Plan")
