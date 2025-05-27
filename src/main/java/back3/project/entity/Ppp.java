@@ -8,7 +8,7 @@ import java.time.LocalDate;
 @Table(name = "plan_ppp") 
 public class Ppp {
     @Id
-    @Column(name = "\"Мachine\"")
+    @Column(name = "\"Machine\"")
     private String transaction;
 
     @Column(name = "status_ppp")
