@@ -14,7 +14,7 @@ public class PppNorms {
     @Column(name = "operation_option_norm")
     private String operationNorm;
 
-    @Column(name = "type_machine")
+    @Column(name = "type_mashine")
     private String operationType;
     @Column(name = "specialty")
     private String category;
