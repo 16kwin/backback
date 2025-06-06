@@ -8,14 +8,14 @@ import lombok.Data;
 @Table(name = "operation_norm") 
 public class PppNorms {
     @Id
-    @Column(name = "name")
+    @Column(name = "work_ppp")
     private String operationNormName;
 
-    @Column(name = "norm")
+    @Column(name = "operation_option_norm")
     private String operationNorm;
 
-    @Column(name = "type")
+    @Column(name = "type_machine")
     private String operationType;
-    @Column(name = "category")
+    @Column(name = "specialty")
     private String category;
 }
