@@ -19,7 +19,7 @@ public class Problems {
     @Column(name = "id_employee")
     private Long idEmployee; // "bigint" соответствует типу Long
 
-    @Column(name = "type")
+    @Column(name = "unit")
     private String type; // "text" соответствует типу String
 
     @Column(name = "description")

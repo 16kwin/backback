@@ -4,7 +4,6 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-import back3.project.entity.PppNorms;
 
 @Data
 public class OperationDto {

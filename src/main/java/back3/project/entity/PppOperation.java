@@ -15,17 +15,13 @@ public class PppOperation {
     @Column(name = "transaction")
     private String transaction;
 
-    @Column(name = "type")
+    @Column(name = "stage_ppp")
     private String operationType;
-
-    @Column(name = "work")
-    private String operationWork;
-
-    @Column(name = "start")
+    @Column(name = "start_work")
     private LocalDateTime startTime;
-    @Column(name = "stop")
+    @Column(name = "stop_work")
     private LocalDateTime stopTime;
-    @Column(name = "employees_id")
+    @Column(name = "employee")
     private Long employeesId;
 
 }

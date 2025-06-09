@@ -11,7 +11,7 @@ public class PppEmployees {
     @Column(name = "id")
     private Long employeesId;
 
-    @Column(name = "name")
+    @Column(name = "employee")
     private String employeesName;
 
     @Column(name = "specialization")

@@ -92,7 +92,6 @@ public class OperationCalculationService {
         OperationDto operationDto = new OperationDto();
         operationDto.setOperationId(anyOperation.getOperationId());
         operationDto.setOperationType(anyOperation.getOperationType());
-        operationDto.setOperationWork(anyOperation.getOperationWork());
 
         EmployeeDto employeeDto = pppConversionService.convertToEmployeeDto(optionalPppEmployees.get());
         operationDto.setEmployee(employeeDto);
